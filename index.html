@@ -1,0 +1,159 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>Pharmacy Data</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
+    <script type="text/javascript" src="https://unpkg.com/xlsx@0.15.1/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="container">
+    	<h2 class="text-center mt-4 mb-4">Pharmacy Data</h2>
+    	<div class="card">
+    		<div class="card-header"><b>Select File</b></div>
+    		<div class="card-body">
+    			
+                <input type="file" id="excel_file" />
+
+    		</div>
+    	</div>
+        <input type="text" id="myInput" onkeyup="searchByName()" placeholder="Search for names.." title="Type in a name">
+        <div id="excel_data" class="mt-5"></div>
+    </div>
+</body>
+</html>
+
+<script>
+ var sheet_data = null;
+var original_data = null;
+var tempArray = [];
+branchFilter = function (event) {
+    table = document.getElementById('table');
+    var x = document.getElementById("batch").value;
+    var all = document.getElementById("batch").textContent;
+    var select = x.split(",");
+    row = parseInt(select[1]);
+    x = select[0];
+    if (x == "All") {
+        searchData = tempArray;
+        searchElement = all.substring(3, all.length - 2);
+    } else {
+        searchData = original_data;
+        searchElement = x;
+    }
+    for (var i = 0; i < searchData.length; i++) {
+        if (original_data[i][2] == searchElement) {
+            for (var k = 0; k < original_data[i].length; k++) {
+                if (k != 2) {
+                    table.rows[row].cells[k].innerHTML = original_data[i][k];
+                }
+            }
+        }
+    }
+}
+
+function searchByName() {
+    var input, filter, table, tr, td, i, txtValue;
+    input = document.getElementById("myInput");
+    filter = input.value.toUpperCase();
+    table = document.getElementById("table");
+    tr = table.getElementsByTagName("tr");
+    for (i = 0; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td")[1];
+        if (td) {
+            txtValue = td.textContent || td.innerText;
+            if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                tr[i].style.display = "";
+            } else {
+                tr[i].style.display = "none";
+            }
+        }
+    }
+}
+
+const excel_file = document.getElementById('excel_file');
+
+excel_file.addEventListener('change', (event) => {
+
+    if (!['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'].includes(event.target.files[0].type)) {
+        document.getElementById('table').innerHTML = '<div class="alert alert-danger">Only .xlsx or .xls file format are allowed</div>';
+        excel_file.value = '';
+        return false;
+    }
+    var reader = new FileReader();
+    reader.readAsArrayBuffer(event.target.files[0]);
+    reader.onload = function (event) {
+        var data = new Uint8Array(reader.result);
+        var work_book = XLSX.read(data, {
+            type: 'array',
+            cellText: false,
+            cellDates: true
+        });
+        var sheet_name = work_book.SheetNames;
+        sheet_data = XLSX.utils.sheet_to_json(work_book.Sheets[sheet_name[0]], {
+            header: 1,
+            raw: true,
+            dateNF: 'yyyy-mm-dd HH:mm:ss'
+        });
+        original_data = sheet_data
+        var map = new Map();
+        for (var i = 0; i < sheet_data.length; i++) {
+            if (!map.has(sheet_data[i][1])) {
+                map.set(sheet_data[i][1], 1);
+                tempArray.push(sheet_data[i]);
+            } else {
+                for (var j = 0; j < tempArray.length; j++) {
+                    if (sheet_data[i][1] === tempArray[j][1]) {
+                        tempArray[j][2] = tempArray[j][2] + "," + sheet_data[i][2];
+                        tempArray[j][3] = tempArray[j][3] + sheet_data[i][3];
+                        tempArray[j][4] = Math.min(tempArray[j][4], sheet_data[i][4]);
+                        tempArray[j][5] = Math.min(tempArray[j][5], sheet_data[i][5]);
+                        tempArray[j][6] = Math.max(tempArray[j][6], sheet_data[i][6]);
+                        tempArray[j][7] = Math.max(tempArray[j][7], sheet_data[i][7]);
+                       // console.log(tempArray[j][8]);
+                       // console.log(sheet_data[j][8]);
+                        // if(sheet_data[j][8]!=="/  /")
+                        //     tempArray[j][8]=tempArray[j][8].getTime()>sheet_data[j][8].getTime() ? tempArray[j][8]:sheet_data[j][8];
+                    }
+                }
+            }
+        }
+        if (tempArray.length > 0) {
+            var table_output = '<table class="table table-striped table-bordered" id="table">';
+            for (var row = 0; row < tempArray.length; row++) {
+                table_output += '<tr>';
+                for (var cell = 0; cell < tempArray[row].length; cell++) {
+                    if (row == 0) {
+                        table_output += '<th>' + tempArray[row][cell] + '</th>';
+                    } else {
+                        if (cell == 2) {
+                          //  console.log(tempArray[row][cell] + row);
+                            var Str = tempArray[row][cell] + "";
+                            str = Str.trim();
+                            var arr = Str.split(",");
+                            var drop_down = '<select batches="All" id="batch" onclick="branchFilter(this)">';
+                            drop_down += '<option>' + "All" + '</option>'
+                            for (var a = 0; a < arr.length; a++) {
+                                drop_down += '<option>' + arr[a] + "," + row + '</option>'
+                            }
+                            table_output += '<td>' + drop_down + '</td>';
+                        } else {
+                            table_output += '<td>' + tempArray[row][cell] + '</td>';
+                        }
+                    }
+                }
+                table_output += '</tr>';
+            }
+            table_output += '</table>';
+            document.getElementById('excel_data').innerHTML = table_output;
+        }
+        excel_file.value = '';
+
+    }
+});
+
+</script>
+
+
